@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "ChromeBlock",
+  "version": "0.1.0",
+  "description": "Blocks or hides webpage content based on user-defined keywords.",
+  "background": {
+    "service_worker": "build/background.bundle.js"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://huggingface.co/*",
+    "https://*.huggingface.co/*",
+    "https://*.hf.co/*"
+  ],
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "src/shared.js",
+        "src/generic-content.js"
+      ],
+      "css": [
+        "src/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

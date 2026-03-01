@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChromeBlock Settings</title>
+    <link rel="stylesheet" href="src/options.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <h1>ChromeBlock</h1>
+        <p class="intro">
+          Configure keywords to hide or blur matching content across websites.
+        </p>
+
+        <label class="row checkbox-row">
+          <input id="enabled" type="checkbox" />
+          <span>Enable blocking</span>
+        </label>
+
+        <label class="row">
+          <span>Block mode</span>
+          <select id="hideMode">
+            <option value="hide">Hide matching items</option>
+            <option value="blur">Blur matching items</option>
+          </select>
+        </label>
+
+        <label class="row">
+          <span>Keywords</span>
+          <textarea
+            id="keywords"
+            rows="8"
+            placeholder="Enter one keyword or phrase per line"
+          ></textarea>
+        </label>
+
+        <label class="row checkbox-row">
+          <input id="semanticEnabled" type="checkbox" />
+          <span>Enable semantic profiles</span>
+        </label>
+
+        <label class="row">
+          <span>Semantic threshold</span>
+          <input
+            id="semanticThreshold"
+            type="number"
+            min="0"
+            max="1"
+            step="0.01"
+            placeholder="0.72"
+          />
+        </label>
+
+        <label class="row checkbox-row">
+          <input id="transformerEnabled" type="checkbox" />
+          <span>Enable Transformers.js scoring</span>
+        </label>
+
+        <label class="row">
+          <span>Transformer model</span>
+          <input
+            id="transformerModel"
+            type="text"
+            placeholder="Xenova/all-MiniLM-L6-v2"
+          />
+        </label>
+
+        <label class="row">
+          <span>Transformer threshold</span>
+          <input
+            id="transformerThreshold"
+            type="number"
+            min="0"
+            max="1"
+            step="0.01"
+            placeholder="0.44"
+          />
+        </label>
+
+        <label class="row">
+          <span>Semantic profiles (JSON)</span>
+          <textarea
+            id="semanticProfiles"
+            rows="14"
+            placeholder='[{"label":"Manchester United","aliases":["man utd","mufc"],"related":["bruno fernandes","old trafford","premier league"],"context":["football","soccer"],"threshold":0.72}]'
+          ></textarea>
+        </label>
+
+        <div class="actions">
+          <button id="save" type="button">Save</button>
+          <span id="status" class="status" aria-live="polite"></span>
+        </div>
+      </section>
+    </main>
+
+    <script src="src/shared.js"></script>
+    <script src="src/options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "build:extension": "esbuild src/background.js --bundle --format=iife --platform=browser --outfile=build/background.bundle.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "esbuild": "^0.27.3"
+  }
+}

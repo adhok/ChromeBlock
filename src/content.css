@@ -1,0 +1,49 @@
+.safe-browser-hidden {
+  display: none !important;
+}
+
+.safe-browser-blur {
+  filter: blur(10px) grayscale(0.8) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+html.safe-browser-page-blocked,
+html.safe-browser-page-blocked body {
+  overflow: hidden !important;
+}
+
+.safe-browser-page-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(244, 238, 227, 0.96);
+  color: #1f2933;
+}
+
+.safe-browser-page-overlay[data-mode="blur"] {
+  backdrop-filter: blur(14px);
+  background: rgba(244, 238, 227, 0.72);
+}
+
+.safe-browser-page-overlay__panel {
+  max-width: 420px;
+  border: 1px solid rgba(31, 41, 51, 0.14);
+  border-radius: 18px;
+  background: #fffaf0;
+  padding: 24px;
+  box-shadow: 0 24px 60px rgba(31, 41, 51, 0.12);
+  text-align: center;
+}
+
+.safe-browser-page-overlay__panel h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+}
+
+.safe-browser-page-overlay__panel p {
+  margin: 0;
+}
