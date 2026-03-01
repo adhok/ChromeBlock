@@ -15,11 +15,13 @@ A minimal Manifest V3 browser extension that hides or blurs webpage content when
 
 ## Load locally
 
-1. Run `npm run build:extension`
-2. Open `chrome://extensions`
-3. Enable Developer mode
-4. Click `Load unpacked`
-5. Select the cloned project folder
+1. Clone the repository and open the project folder
+2. Run `npm install`
+3. Run `npm run build:extension`
+4. Open `chrome://extensions`
+5. Enable Developer mode
+6. Click `Load unpacked`
+7. Select the cloned project folder
 
 ## Reload after changes
 
@@ -66,6 +68,6 @@ This profile format powers both:
 - Semantic profiles use weighted alias/related/context scoring by default.
 - If `Transformers.js` scoring is enabled, the background worker also compares candidate text embeddings against profile embeddings using `Xenova/all-MiniLM-L6-v2` by default.
 - The first transformer-backed match may take a while because the model files need to download.
-- This unpacked extension now depends on the local `node_modules` folder being present.
+- Dependencies should be installed locally with `npm install`; `node_modules/` should not be committed to Git.
 - If the background worker changes, run `npm run build:extension` before reloading the extension.
 - The extension runs on `http` and `https` pages in the browser, not native mobile apps.
