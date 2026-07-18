@@ -1,4 +1,7 @@
 import { env, pipeline } from "@huggingface/transformers";
+import "./shared.js";
+
+const { getSettings, normalizeSettings, STORAGE_KEY } = globalThis.SafeBrowserShared;
 
 env.allowRemoteModels = true;
 env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL(
@@ -8,6 +11,10 @@ env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL(
 let currentModel = null;
 let extractorPromise = null;
 const embeddingCache = new Map();
+
+let currentSettings = null;
+let profileEmbeddingsCache = [];
+let precomputePromise = null;
 
 function trimCache(map, maxEntries) {
   while (map.size > maxEntries) {
@@ -27,24 +34,13 @@ function buildProfileText(profile) {
     .join(". ");
 }
 
-function cosineSimilarity(left, right) {
+function dotProduct(left, right) {
   let dot = 0;
-  let leftMagnitude = 0;
-  let rightMagnitude = 0;
-
-  for (let index = 0; index < left.length; index += 1) {
-    const leftValue = left[index];
-    const rightValue = right[index];
-    dot += leftValue * rightValue;
-    leftMagnitude += leftValue * leftValue;
-    rightMagnitude += rightValue * rightValue;
+  const length = left.length;
+  for (let index = 0; index < length; index += 1) {
+    dot += left[index] * right[index];
   }
-
-  if (leftMagnitude === 0 || rightMagnitude === 0) {
-    return 0;
-  }
-
-  return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+  return dot;
 }
 
 async function getExtractor(model) {
@@ -79,18 +75,41 @@ async function getEmbedding(text, model) {
   return vector;
 }
 
-async function scoreTextAgainstProfiles({ text, profiles, model, threshold }) {
+async function ensureProfileEmbeddings() {
+  if (!currentSettings) {
+    currentSettings = await getSettings();
+  }
+  if (!precomputePromise) {
+    precomputePromise = (async () => {
+      const model = currentSettings.transformerModel;
+      const profiles = currentSettings.semanticProfiles || [];
+      const list = [];
+      for (const profile of profiles) {
+        const profileText = buildProfileText(profile);
+        if (!profileText) {
+          continue;
+        }
+        const embedding = await getEmbedding(profileText, model);
+        list.push({ profile, embedding });
+      }
+      profileEmbeddingsCache = list;
+    })();
+  }
+  await precomputePromise;
+}
+
+async function scoreTextAgainstProfiles({ text, model, threshold }) {
+  await ensureProfileEmbeddings();
+
+  if (!currentSettings?.transformerEnabled || profileEmbeddingsCache.length === 0) {
+    return null;
+  }
+
   const textEmbedding = await getEmbedding(text, model);
   let best = null;
 
-  for (const profile of profiles) {
-    const profileText = buildProfileText(profile);
-    if (!profileText) {
-      continue;
-    }
-
-    const profileEmbedding = await getEmbedding(profileText, model);
-    const score = cosineSimilarity(textEmbedding, profileEmbedding);
+  for (const { profile, embedding } of profileEmbeddingsCache) {
+    const score = dotProduct(textEmbedding, embedding);
     const minimum = Number(profile.threshold ?? threshold ?? 0.44);
 
     if (score < minimum) {
@@ -111,6 +130,15 @@ async function scoreTextAgainstProfiles({ text, profiles, model, threshold }) {
 
   return best;
 }
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== "sync" || !changes[STORAGE_KEY]) {
+    return;
+  }
+  currentSettings = normalizeSettings(changes[STORAGE_KEY].newValue);
+  precomputePromise = null;
+  ensureProfileEmbeddings().catch(console.error);
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "safe-browser-score-transformer") {

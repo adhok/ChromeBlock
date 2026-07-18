@@ -23,6 +23,7 @@
       ],
       "js": [
         "src/shared.js",
+        "src/matcher.js",
         "src/generic-content.js"
       ],
       "css": [

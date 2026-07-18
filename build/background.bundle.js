@@ -40630,11 +40630,11 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
           return result;
         }
         function cos_sim(arr1, arr2) {
-          const dotProduct = dot(arr1, arr2);
+          const dotProduct2 = dot(arr1, arr2);
           const magnitudeA = magnitude(arr1);
           const magnitudeB = magnitude(arr2);
-          const cosineSimilarity2 = dotProduct / (magnitudeA * magnitudeB);
-          return cosineSimilarity2;
+          const cosineSimilarity = dotProduct2 / (magnitudeA * magnitudeB);
+          return cosineSimilarity;
         }
         function magnitude(arr) {
           return Math.sqrt(arr.reduce((acc, val) => acc + val * val, 0));
@@ -47957,7 +47957,126 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
   var __webpack_exports__zeros = __webpack_exports__.zeros;
   var __webpack_exports__zeros_like = __webpack_exports__.zeros_like;
 
+  // src/shared.js
+  (function initSafeBrowserShared(global) {
+    const STORAGE_KEY2 = "safeBrowserSettings";
+    const DEFAULT_SETTINGS = {
+      enabled: true,
+      hideMode: "hide",
+      keywords: ["spoiler", "gambling", "nsfw"],
+      semanticEnabled: false,
+      semanticThreshold: 0.72,
+      semanticProfiles: [],
+      transformerEnabled: false,
+      transformerModel: "Xenova/all-MiniLM-L6-v2",
+      transformerThreshold: 0.44
+    };
+    function normalizeKeyword(keyword) {
+      return String(keyword || "").trim().toLowerCase();
+    }
+    function normalizeStringList(values) {
+      return Array.from(
+        new Set(
+          (Array.isArray(values) ? values : []).map(normalizeKeyword).filter(Boolean)
+        )
+      );
+    }
+    function clampNumber(value, min, max, fallback) {
+      const numeric = Number(value);
+      if (Number.isNaN(numeric)) {
+        return fallback;
+      }
+      return Math.min(max, Math.max(min, numeric));
+    }
+    function normalizeProfile(profile) {
+      const raw = profile || {};
+      const label = String(raw.label || raw.name || "").trim();
+      if (!label) {
+        return null;
+      }
+      return {
+        label,
+        aliases: normalizeStringList([label, ...raw.aliases || []]),
+        related: normalizeStringList(raw.related || raw.relatedTerms || []),
+        context: normalizeStringList(raw.context || raw.contextTerms || []),
+        threshold: clampNumber(raw.threshold, 0, 1, DEFAULT_SETTINGS.semanticThreshold)
+      };
+    }
+    function normalizeSettings2(settings) {
+      const merged = {
+        ...DEFAULT_SETTINGS,
+        ...settings || {}
+      };
+      return {
+        enabled: Boolean(merged.enabled),
+        hideMode: merged.hideMode === "blur" ? "blur" : "hide",
+        keywords: normalizeStringList(merged.keywords),
+        semanticEnabled: Boolean(merged.semanticEnabled),
+        semanticThreshold: clampNumber(
+          merged.semanticThreshold,
+          0,
+          1,
+          DEFAULT_SETTINGS.semanticThreshold
+        ),
+        transformerEnabled: Boolean(merged.transformerEnabled),
+        transformerModel: String(merged.transformerModel || DEFAULT_SETTINGS.transformerModel).trim() || DEFAULT_SETTINGS.transformerModel,
+        transformerThreshold: clampNumber(
+          merged.transformerThreshold,
+          0,
+          1,
+          DEFAULT_SETTINGS.transformerThreshold
+        ),
+        semanticProfiles: (Array.isArray(merged.semanticProfiles) ? merged.semanticProfiles : []).map(normalizeProfile).filter(Boolean)
+      };
+    }
+    function getSettings2() {
+      return new Promise((resolve) => {
+        chrome.storage.sync.get([STORAGE_KEY2], (result) => {
+          resolve(normalizeSettings2(result[STORAGE_KEY2]));
+        });
+      });
+    }
+    function saveSettings(settings) {
+      return new Promise((resolve) => {
+        const normalized = normalizeSettings2(settings);
+        chrome.storage.sync.set({ [STORAGE_KEY2]: normalized }, () => resolve(normalized));
+      });
+    }
+    function applyBlockState(element, mode, matchedKeyword) {
+      if (!element || element.dataset.safeBrowserBlocked === "true") {
+        return;
+      }
+      element.dataset.safeBrowserBlocked = "true";
+      element.dataset.safeBrowserKeyword = matchedKeyword;
+      if (mode === "blur") {
+        element.classList.add("safe-browser-blur");
+        return;
+      }
+      element.classList.add("safe-browser-hidden");
+    }
+    function clearBlockState(element) {
+      if (!element) {
+        return;
+      }
+      delete element.dataset.safeBrowserBlocked;
+      delete element.dataset.safeBrowserKeyword;
+      element.classList.remove("safe-browser-hidden");
+      element.classList.remove("safe-browser-blur");
+    }
+    global.SafeBrowserShared = {
+      DEFAULT_SETTINGS,
+      STORAGE_KEY: STORAGE_KEY2,
+      normalizeSettings: normalizeSettings2,
+      normalizeProfile,
+      getSettings: getSettings2,
+      saveSettings,
+      applyBlockState,
+      clearBlockState
+    };
+  })(globalThis);
+
   // src/background.js
+  var { getSettings, normalizeSettings, STORAGE_KEY } = globalThis.SafeBrowserShared;
   __webpack_exports__env.allowRemoteModels = true;
   __webpack_exports__env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL(
     "node_modules/onnxruntime-web/dist/"
@@ -47965,6 +48084,9 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
   var currentModel = null;
   var extractorPromise = null;
   var embeddingCache = /* @__PURE__ */ new Map();
+  var currentSettings = null;
+  var profileEmbeddingsCache = [];
+  var precomputePromise = null;
   function trimCache(map, maxEntries) {
     while (map.size > maxEntries) {
       const oldestKey = map.keys().next().value;
@@ -47979,21 +48101,13 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
       ...profile.context || []
     ].filter(Boolean).join(". ");
   }
-  function cosineSimilarity(left, right) {
+  function dotProduct(left, right) {
     let dot = 0;
-    let leftMagnitude = 0;
-    let rightMagnitude = 0;
-    for (let index = 0; index < left.length; index += 1) {
-      const leftValue = left[index];
-      const rightValue = right[index];
-      dot += leftValue * rightValue;
-      leftMagnitude += leftValue * leftValue;
-      rightMagnitude += rightValue * rightValue;
+    const length = left.length;
+    for (let index = 0; index < length; index += 1) {
+      dot += left[index] * right[index];
     }
-    if (leftMagnitude === 0 || rightMagnitude === 0) {
-      return 0;
-    }
-    return dot / (Math.sqrt(leftMagnitude) * Math.sqrt(rightMagnitude));
+    return dot;
   }
   async function getExtractor(model) {
     if (!extractorPromise || currentModel !== model) {
@@ -48020,16 +48134,37 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
     trimCache(embeddingCache, 250);
     return vector;
   }
-  async function scoreTextAgainstProfiles({ text, profiles, model, threshold }) {
+  async function ensureProfileEmbeddings() {
+    if (!currentSettings) {
+      currentSettings = await getSettings();
+    }
+    if (!precomputePromise) {
+      precomputePromise = (async () => {
+        const model = currentSettings.transformerModel;
+        const profiles = currentSettings.semanticProfiles || [];
+        const list = [];
+        for (const profile of profiles) {
+          const profileText = buildProfileText(profile);
+          if (!profileText) {
+            continue;
+          }
+          const embedding = await getEmbedding(profileText, model);
+          list.push({ profile, embedding });
+        }
+        profileEmbeddingsCache = list;
+      })();
+    }
+    await precomputePromise;
+  }
+  async function scoreTextAgainstProfiles({ text, model, threshold }) {
+    await ensureProfileEmbeddings();
+    if (!currentSettings?.transformerEnabled || profileEmbeddingsCache.length === 0) {
+      return null;
+    }
     const textEmbedding = await getEmbedding(text, model);
     let best = null;
-    for (const profile of profiles) {
-      const profileText = buildProfileText(profile);
-      if (!profileText) {
-        continue;
-      }
-      const profileEmbedding = await getEmbedding(profileText, model);
-      const score = cosineSimilarity(textEmbedding, profileEmbedding);
+    for (const { profile, embedding } of profileEmbeddingsCache) {
+      const score = dotProduct(textEmbedding, embedding);
       const minimum = Number(profile.threshold ?? threshold ?? 0.44);
       if (score < minimum) {
         continue;
@@ -48047,6 +48182,14 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
     }
     return best;
   }
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "sync" || !changes[STORAGE_KEY]) {
+      return;
+    }
+    currentSettings = normalizeSettings(changes[STORAGE_KEY].newValue);
+    precomputePromise = null;
+    ensureProfileEmbeddings().catch(console.error);
+  });
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== "safe-browser-score-transformer") {
       return void 0;

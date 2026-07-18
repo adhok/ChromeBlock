@@ -1,11 +1,11 @@
 (function initGenericFilter() {
   const {
     getSettings,
-    findBestMatch,
     applyBlockState,
     clearBlockState,
     normalizeSettings
   } = globalThis.SafeBrowserShared;
+  const { findBestLocalMatch } = globalThis.SafeBrowserMatcher;
 
   const MAX_TEXT_LENGTH = 5000;
   const MAX_TEXT_NODES_PER_SCAN = 2000;
@@ -93,6 +93,7 @@
   let forceFullScan = false;
   let scanSequence = 0;
   const transformerMatchCache = new Map();
+  const elementTextCache = new WeakMap();
 
   function getSelectorList() {
     return [...(SITE_SELECTORS[window.location.hostname] || []), ...GENERIC_SELECTORS];
@@ -104,6 +105,21 @@
 
   function extractText(element) {
     return (element?.innerText || element?.textContent || "").trim();
+  }
+
+  function getElementTextSnapshot(element) {
+    if (!(element instanceof HTMLElement)) {
+      return "";
+    }
+
+    const cached = elementTextCache.get(element);
+    if (cached && cached.sequence === scanSequence) {
+      return cached.text;
+    }
+
+    const text = extractText(element);
+    elementTextCache.set(element, { text, sequence: scanSequence });
+    return text;
   }
 
   function isVisible(element) {
@@ -151,15 +167,32 @@
   }
 
   function isEligibleContainer(element) {
-    if (!isVisible(element)) {
+    if (!(element instanceof HTMLElement)) {
       return false;
     }
 
+    // 1. Cheapest check: Check if it looks like a container
+    if (!looksLikeContainer(element)) {
+      return false;
+    }
+
+    // 2. Cheap DOM check: Excluded selectors
     if (element.closest(EXCLUDED_SELECTOR)) {
       return false;
     }
 
-    const text = extractText(element);
+    // 3. Cheaper text check: Check raw textContent length first (avoiding innerText reflow)
+    const rawText = element.textContent || "";
+    if (!rawText.trim()) {
+      return false;
+    }
+
+    // 4. Expensive layout checks (getComputedStyle, getBoundingClientRect, innerText)
+    if (!isVisible(element)) {
+      return false;
+    }
+
+    const text = getElementTextSnapshot(element);
     if (!text || text.length > MAX_TEXT_LENGTH) {
       return false;
     }
@@ -169,7 +202,7 @@
       return false;
     }
 
-    return looksLikeContainer(element);
+    return true;
   }
 
   function clearAllBlockStates() {
@@ -195,7 +228,6 @@
   function requestTransformerMatch(text) {
     const payload = {
       text: String(text || "").slice(0, 1200),
-      profiles: currentSettings.semanticProfiles,
       model: currentSettings.transformerModel,
       threshold: currentSettings.transformerThreshold
     };
@@ -219,7 +251,7 @@
   }
 
   async function findBestTextMatch(text) {
-    const localMatch = findBestMatch(text, currentSettings);
+    const localMatch = findBestLocalMatch(text, currentSettings);
     if (localMatch || !canUseTransformer(text)) {
       return localMatch;
     }
@@ -311,7 +343,7 @@
     const titleMatch = await findBestTextMatch(document.title);
     const urlMatch = await findBestTextMatch(window.location.href);
     const primary = getPrimaryContentElement();
-    const bodyMatch = await findBestTextMatch(extractText(primary || document.body));
+    const bodyMatch = await findBestTextMatch(getElementTextSnapshot(primary || document.body));
 
     if (!bodyMatch || (!titleMatch && !urlMatch)) {
       return false;
@@ -328,14 +360,14 @@
 
   function collectSelectorCandidates(root) {
     const candidates = new Set();
-    const selectors = getSelectorList();
+    const selectorString = getSelectorString();
 
-    for (const selector of selectors) {
-      if (root.matches?.(selector)) {
-        candidates.add(root);
-      }
+    if (root.matches?.(selectorString)) {
+      candidates.add(root);
+    }
 
-      root.querySelectorAll?.(selector).forEach((element) => candidates.add(element));
+    if (root.querySelectorAll) {
+      root.querySelectorAll(selectorString).forEach((element) => candidates.add(element));
     }
 
     return Array.from(candidates).filter(isEligibleContainer);
@@ -395,11 +427,14 @@
     while (node && visited < MAX_TEXT_NODES_PER_SCAN) {
       visited += 1;
 
-      const match = findBestMatch(node.textContent, currentSettings);
-      if (match) {
-        const container = findBestContainer(node.parentElement);
-        if (container) {
-          candidates.add(container);
+      const text = String(node.textContent || "").trim();
+      if (text.length >= 2 && /[a-z0-9]/i.test(text)) {
+        const match = findBestLocalMatch(text, currentSettings);
+        if (match) {
+          const container = findBestContainer(node.parentElement);
+          if (container) {
+            candidates.add(container);
+          }
         }
       }
 
@@ -411,9 +446,13 @@
 
   function collectCandidates(root) {
     const candidates = new Set();
+    const selectorCandidates = collectSelectorCandidates(root);
 
-    collectSelectorCandidates(root).forEach((element) => candidates.add(element));
-    collectTextNodeCandidates(root).forEach((element) => candidates.add(element));
+    selectorCandidates.forEach((element) => candidates.add(element));
+
+    if (selectorCandidates.length === 0) {
+      collectTextNodeCandidates(root).forEach((element) => candidates.add(element));
+    }
 
     return Array.from(candidates);
   }
@@ -434,7 +473,7 @@
       return;
     }
 
-    const match = await findBestTextMatch(extractText(element));
+    const match = await findBestTextMatch(getElementTextSnapshot(element));
 
     if (match && sequence === scanSequence) {
       applyBlockState(element, currentSettings.hideMode, match.label);
