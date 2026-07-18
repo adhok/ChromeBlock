@@ -47964,6 +47964,7 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
       enabled: true,
       hideMode: "hide",
       keywords: ["spoiler", "gambling", "nsfw"],
+      excludedWebsites: ["claude.ai", "chatgpt.com", "gemini.google.com"],
       semanticEnabled: false,
       semanticThreshold: 0.72,
       semanticProfiles: [],
@@ -48011,6 +48012,7 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
         enabled: Boolean(merged.enabled),
         hideMode: merged.hideMode === "blur" ? "blur" : "hide",
         keywords: normalizeStringList(merged.keywords),
+        excludedWebsites: normalizeStringList(merged.excludedWebsites),
         semanticEnabled: Boolean(merged.semanticEnabled),
         semanticThreshold: clampNumber(
           merged.semanticThreshold,

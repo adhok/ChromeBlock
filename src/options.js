@@ -4,6 +4,7 @@
   const enabledInput = document.getElementById("enabled");
   const hideModeInput = document.getElementById("hideMode");
   const keywordsInput = document.getElementById("keywords");
+  const excludedWebsitesInput = document.getElementById("excludedWebsites");
   const semanticEnabledInput = document.getElementById("semanticEnabled");
   const semanticThresholdInput = document.getElementById("semanticThreshold");
   const transformerEnabledInput = document.getElementById("transformerEnabled");
@@ -42,6 +43,7 @@
     enabledInput.checked = settings.enabled;
     hideModeInput.value = settings.hideMode;
     keywordsInput.value = keywordsToText(settings.keywords);
+    excludedWebsitesInput.value = keywordsToText(settings.excludedWebsites);
     semanticEnabledInput.checked = settings.semanticEnabled;
     semanticThresholdInput.value = String(settings.semanticThreshold);
     transformerEnabledInput.checked = settings.transformerEnabled;
@@ -64,6 +66,7 @@
       enabled: enabledInput.checked,
       hideMode: hideModeInput.value,
       keywords: textToKeywords(keywordsInput.value),
+      excludedWebsites: textToKeywords(excludedWebsitesInput.value),
       semanticEnabled: semanticEnabledInput.checked,
       semanticThreshold: Number(semanticThresholdInput.value || 0.72),
       transformerEnabled: transformerEnabledInput.checked,

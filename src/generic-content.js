@@ -95,6 +95,18 @@
   const transformerMatchCache = new Map();
   const elementTextCache = new WeakMap();
 
+  function isCurrentPageExcluded(settings) {
+    if (!settings || !settings.excludedWebsites || settings.excludedWebsites.length === 0) {
+      return false;
+    }
+
+    const hostname = window.location.hostname.toLowerCase();
+    return settings.excludedWebsites.some((site) => {
+      const normalizedSite = site.toLowerCase();
+      return hostname === normalizedSite || hostname.endsWith("." + normalizedSite);
+    });
+  }
+
   function getSelectorList() {
     return [...(SITE_SELECTORS[window.location.hostname] || []), ...GENERIC_SELECTORS];
   }
@@ -518,6 +530,11 @@
   }
 
   function scheduleScan(root = document.documentElement, fullScan = false) {
+    if (currentSettings && isCurrentPageExcluded(currentSettings)) {
+      clearAllBlockStates();
+      return;
+    }
+
     pendingRoots.add(root);
     forceFullScan = forceFullScan || fullScan;
 
