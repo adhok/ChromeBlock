@@ -48083,6 +48083,7 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
   __webpack_exports__env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL(
     "node_modules/onnxruntime-web/dist/"
   );
+  __webpack_exports__env.backends.onnx.wasm.numThreads = 1;
   var currentModel = null;
   var extractorPromise = null;
   var embeddingCache = /* @__PURE__ */ new Map();

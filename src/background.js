@@ -7,6 +7,7 @@ env.allowRemoteModels = true;
 env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL(
   "node_modules/onnxruntime-web/dist/"
 );
+env.backends.onnx.wasm.numThreads = 1;
 
 let currentModel = null;
 let extractorPromise = null;
