@@ -21,7 +21,7 @@ A minimal Manifest V3 browser extension that hides or blurs webpage content when
 4. Open `chrome://extensions`
 5. Enable Developer mode
 6. Click `Load unpacked`
-7. Select the cloned project folder
+7. Select the generated `dist` folder inside the project folder
 
 ## Reload after changes
 
@@ -34,9 +34,10 @@ A minimal Manifest V3 browser extension that hides or blurs webpage content when
 1. Open the extension details page
 2. Click `Extension options`
 3. Add one keyword or phrase per line
-4. Choose whether matching items should be hidden or blurred
-5. Optionally enable semantic profiles and paste JSON profiles
-6. Optionally enable `Transformers.js` scoring for embedding-based profile matching
+4. Optionally add one domain per line to the **Excluded Websites** list to bypass filtering on specific sites (e.g., `claude.ai`, `chatgpt.com`, `gemini.google.com` are whitelisted by default).
+5. Choose whether matching items should be hidden or blurred
+6. Optionally enable semantic profiles and paste JSON profiles
+7. Optionally enable `Transformers.js` scoring for embedding-based profile matching
 
 ## Semantic profile example
 
