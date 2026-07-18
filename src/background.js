@@ -1,12 +1,8 @@
 import { env, pipeline } from "@huggingface/transformers";
-import "./shared.js";
-
-const { getSettings, normalizeSettings, STORAGE_KEY } = globalThis.SafeBrowserShared;
+import { getSettings, normalizeSettings, STORAGE_KEY } from "./shared.js";
 
 env.allowRemoteModels = true;
-env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL(
-  "node_modules/onnxruntime-web/dist/"
-);
+env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL("onnx/");
 env.backends.onnx.wasm.numThreads = 1;
 
 let currentModel = null;
@@ -76,26 +72,63 @@ async function getEmbedding(text, model) {
   return vector;
 }
 
+function getProfilesFingerprint(profiles, model) {
+  return model + "::" + JSON.stringify(profiles || []);
+}
+
 async function ensureProfileEmbeddings() {
   if (!currentSettings) {
     currentSettings = await getSettings();
   }
-  if (!precomputePromise) {
-    precomputePromise = (async () => {
-      const model = currentSettings.transformerModel;
-      const profiles = currentSettings.semanticProfiles || [];
-      const list = [];
-      for (const profile of profiles) {
-        const profileText = buildProfileText(profile);
-        if (!profileText) {
-          continue;
-        }
-        const embedding = await getEmbedding(profileText, model);
-        list.push({ profile, embedding });
-      }
-      profileEmbeddingsCache = list;
-    })();
+
+  const fingerprint = getProfilesFingerprint(
+    currentSettings.semanticProfiles,
+    currentSettings.transformerModel
+  );
+
+  if (precomputePromise) {
+    await precomputePromise;
+    return;
   }
+
+  precomputePromise = (async () => {
+    const cacheKey = "cached_profile_embeddings";
+    const localResult = await new Promise((resolve) => {
+      chrome.storage.local.get([cacheKey], (res) => resolve(res[cacheKey]));
+    });
+
+    if (localResult && localResult.fingerprint === fingerprint) {
+      profileEmbeddingsCache = localResult.embeddings;
+      return;
+    }
+
+    const model = currentSettings.transformerModel;
+    const profiles = currentSettings.semanticProfiles || [];
+    const list = [];
+    for (const profile of profiles) {
+      const profileText = buildProfileText(profile);
+      if (!profileText) {
+        continue;
+      }
+      const embedding = await getEmbedding(profileText, model);
+      list.push({ profile, embedding });
+    }
+
+    profileEmbeddingsCache = list;
+
+    await new Promise((resolve) => {
+      chrome.storage.local.set(
+        {
+          [cacheKey]: {
+            fingerprint,
+            embeddings: list
+          }
+        },
+        resolve
+      );
+    });
+  })();
+
   await precomputePromise;
 }
 
